@@ -1,9 +1,9 @@
-const CACHE = 'tage-v4';
+const CACHE = 'tage-v5';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/store.js', 'js/dates.js', 'js/dnd.js', 'js/sheet.js', 'js/settings.js', 'js/ui.js',
   'js/sync.js', 'js/config.js', 'js/stats.js', 'js/calendar.js',
-  'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
+  'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'favicon.ico', 'icons/favicon-32.png',
 ];
 
 self.addEventListener('install', e => {
