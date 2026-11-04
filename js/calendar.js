@@ -44,7 +44,7 @@ export async function refreshCalendars(force = false) {
   status = 'loading';
   notify();
   try {
-    const { data, error } = await db.from('calendar_feeds').select('id, name, color').order('created_at');
+    const { data, error } = await db.from('calendar_feeds').select('id, name, color, only_single').order('created_at');
     if (error) throw error;
     feeds = data;
     ICAL ??= (await import(LIB)).default;
@@ -63,13 +63,18 @@ export async function refreshCalendars(force = false) {
   notify();
 }
 
-export async function addFeed(name, url) {
+export async function addFeed(name, url, onlySingle) {
   const db = signedInClient();
   const color = FEED_COLORS[feeds.length % FEED_COLORS.length];
-  const { error } = await db.from('calendar_feeds').insert({ name, url, color });
+  const { error } = await db.from('calendar_feeds').insert({ name, url, color, only_single: onlySingle });
   if (error) return error.message;
   await refreshCalendars(true);
   return status === 'error' ? 'Der Kalender ließ sich nicht laden. Stimmt die Adresse?' : null;
+}
+
+export async function setOnlySingle(id, onlySingle) {
+  await signedInClient()?.from('calendar_feeds').update({ only_single: onlySingle }).eq('id', id);
+  await refreshCalendars(true);
 }
 
 export async function removeFeed(id) {
@@ -120,6 +125,7 @@ function expand(from, to) {
   for (const { feed, events } of parsed) {
     for (const ev of events) {
       const title = ev.summary || '(ohne Titel)';
+      if (feed.only_single && ev.isRecurring()) continue;
       if (!ev.isRecurring()) {
         place(out, feed, title, ev.location, ev.startDate.toJSDate(), ev.endDate.toJSDate(), ev.startDate.isDate, from, to);
         continue;

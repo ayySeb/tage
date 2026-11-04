@@ -2,7 +2,7 @@ import * as store from './store.js';
 import { todayIso } from './dates.js';
 import { esc, ICON } from './ui.js';
 import { syncInfo, onSyncChange, signIn, signUp, signOut, syncNow } from './sync.js';
-import { calendarInfo, onCalendarChange, addFeed, removeFeed } from './calendar.js';
+import { calendarInfo, onCalendarChange, addFeed, removeFeed, setOnlySingle } from './calendar.js';
 
 const THEMES = [['auto', 'Auto'], ['light', 'Hell'], ['dark', 'Dunkel']];
 const ACCENTS = [['graphite', 'Graphit'], ['blue', 'Blau'], ['green', 'Grün'], ['coral', 'Koralle'], ['violet', 'Violett'], ['amber', 'Bernstein']];
@@ -68,6 +68,7 @@ function calendarSection() {
   const { feeds, status } = calendarInfo();
   const list = feeds.map(f => `<li data-feed="${f.color}"><span class="feed-dot"></span>`
     + `<span class="feed-name">${esc(f.name) || 'Kalender'}</span>`
+    + `<label class="feed-single" title="Wiederkehrende Termine ausblenden"><input type="checkbox" data-single-feed="${f.id}"${f.only_single ? ' checked' : ''}>Nur Einzeltermine</label>`
     + `<button type="button" class="icon-btn sm" data-remove-feed="${f.id}" aria-label="Kalender entfernen">${ICON.close}</button></li>`).join('');
   return `<section>
     <h3>Kalender</h3>
@@ -79,6 +80,7 @@ function calendarSection() {
       <form class="auth feed-form">
         <input name="feedName" placeholder="Name, z. B. Uni" required>
         <input name="feedUrl" type="url" placeholder="https://calendar.google.com/…/basic.ics" required>
+        <label class="feed-single"><input type="checkbox" name="onlySingle" checked>Nur Einzeltermine, wiederkehrende ausblenden</label>
         <p class="auth-msg" role="status"></p>
         <div class="row"><button class="pill primary">Hinzufügen</button></div>
       </form>
@@ -155,11 +157,11 @@ dlg.addEventListener('submit', async e => {
   e.preventDefault();
   const form = e.target;
   const msg = form.querySelector('.auth-msg');
-  const { email, password, feedName, feedUrl } = Object.fromEntries(new FormData(form));
+  const { email, password, feedName, feedUrl, onlySingle } = Object.fromEntries(new FormData(form));
   form.querySelectorAll('button').forEach(b => (b.disabled = true));
   msg.textContent = form.matches('.feed-form') ? 'Lade Kalender …' : '';
   const error = form.matches('.feed-form')
-    ? await addFeed(feedName.trim(), feedUrl.trim())
+    ? await addFeed(feedName.trim(), feedUrl.trim(), !!onlySingle)
     : await (e.submitter?.value === 'up' ? signUp : signIn)(email.trim(), password);
   if (!error) {
     document.activeElement?.blur();
@@ -171,7 +173,9 @@ dlg.addEventListener('submit', async e => {
 
 dlg.addEventListener('change', async e => {
   const el = e.target;
-  if (el.name === 'rollover') {
+  if (el.dataset.singleFeed) {
+    setOnlySingle(el.dataset.singleFeed, el.checked);
+  } else if (el.name === 'rollover') {
     store.setSettings({ rollover: el.checked });
     store.rollover();
   } else if (el.name === 'import' && el.files[0]) {

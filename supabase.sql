@@ -40,6 +40,7 @@ create table public.calendar_feeds (
   name text not null default '',
   url text not null,
   color text not null default 'blue',
+  only_single boolean not null default false,  -- hide recurring events, show one-off appointments only
   created_at timestamptz not null default now()
 );
 
