@@ -2,6 +2,7 @@ import * as store from './store.js';
 import { todayIso } from './dates.js';
 import { esc, ICON } from './ui.js';
 import { syncInfo, onSyncChange, signIn, signUp, signOut, syncNow } from './sync.js';
+import { calendarInfo, onCalendarChange, addFeed, removeFeed } from './calendar.js';
 
 const THEMES = [['auto', 'Auto'], ['light', 'Hell'], ['dark', 'Dunkel']];
 const ACCENTS = [['graphite', 'Graphit'], ['blue', 'Blau'], ['green', 'Grün'], ['coral', 'Koralle'], ['violet', 'Violett'], ['amber', 'Bernstein']];
@@ -62,8 +63,33 @@ function syncSection() {
   </section>`;
 }
 
-// Refresh the status line while the dialog is open, but never wipe what is being typed into the form.
-onSyncChange(() => dlg.open && !dlg.querySelector('.auth input:focus') && render());
+function calendarSection() {
+  if (!syncInfo().email) return '';
+  const { feeds, status } = calendarInfo();
+  const list = feeds.map(f => `<li data-feed="${f.color}"><span class="feed-dot"></span>`
+    + `<span class="feed-name">${esc(f.name) || 'Kalender'}</span>`
+    + `<button type="button" class="icon-btn sm" data-remove-feed="${f.id}" aria-label="Kalender entfernen">${ICON.close}</button></li>`).join('');
+  return `<section>
+    <h3>Kalender</h3>
+    ${list ? `<ul class="feeds">${list}</ul>` : ''}
+    ${status === 'error' ? '<p class="auth-msg">Ein Kalender ließ sich gerade nicht laden.</p>' : ''}
+    <details class="feed-add"${list ? '' : ' open'}>
+      <summary>Kalender hinzufügen</summary>
+      <p class="hint">Google Kalender am PC öffnen → Einstellungen (Zahnrad) → links deinen Kalender wählen → „Kalender integrieren“ → <b>Privatadresse im iCal-Format</b> kopieren und hier einfügen. Die Termine erscheinen dann zum Lesen in deiner Woche, auf allen Geräten.</p>
+      <form class="auth feed-form">
+        <input name="feedName" placeholder="Name, z. B. Uni" required>
+        <input name="feedUrl" type="url" placeholder="https://calendar.google.com/…/basic.ics" required>
+        <p class="auth-msg" role="status"></p>
+        <div class="row"><button class="pill primary">Hinzufügen</button></div>
+      </form>
+    </details>
+  </section>`;
+}
+
+// Refresh status lines while the dialog is open, but never wipe what is being typed into a form.
+const refresh = () => dlg.open && !dlg.querySelector('.auth input:focus') && render();
+onSyncChange(refresh);
+onCalendarChange(refresh);
 
 function render() {
   const s = store.settings();
@@ -74,6 +100,7 @@ function render() {
         <button type="button" class="icon-btn" data-act="close" aria-label="Schließen">${ICON.close}</button>
       </div>
       ${syncSection()}
+      ${calendarSection()}
       <section>
         <h3>Erscheinungsbild</h3>
         <div class="seg">${THEMES.map(([v, l]) => `<button type="button" data-set-theme="${v}" aria-pressed="${s.theme === v}">${l}</button>`).join('')}</div>
@@ -116,6 +143,7 @@ dlg.addEventListener('click', e => {
   else if (b.dataset.act === 'export') download();
   else if (b.dataset.act === 'sync') syncNow();
   else if (b.dataset.act === 'signout') signOut().then(render);
+  else if (b.dataset.removeFeed && confirm('Diesen Kalender entfernen?')) removeFeed(b.dataset.removeFeed);
   else if (b.dataset.setTheme || b.dataset.setAccent) {
     store.setSettings(b.dataset.setTheme ? { theme: b.dataset.setTheme } : { accent: b.dataset.setAccent });
     applySettings();
@@ -127,10 +155,12 @@ dlg.addEventListener('submit', async e => {
   e.preventDefault();
   const form = e.target;
   const msg = form.querySelector('.auth-msg');
-  const { email, password } = Object.fromEntries(new FormData(form));
+  const { email, password, feedName, feedUrl } = Object.fromEntries(new FormData(form));
   form.querySelectorAll('button').forEach(b => (b.disabled = true));
-  msg.textContent = '';
-  const error = await (e.submitter?.value === 'up' ? signUp : signIn)(email.trim(), password);
+  msg.textContent = form.matches('.feed-form') ? 'Lade Kalender …' : '';
+  const error = form.matches('.feed-form')
+    ? await addFeed(feedName.trim(), feedUrl.trim())
+    : await (e.submitter?.value === 'up' ? signUp : signIn)(email.trim(), password);
   if (!error) {
     document.activeElement?.blur();
     return render();

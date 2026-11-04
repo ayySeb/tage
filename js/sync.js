@@ -22,6 +22,8 @@ let pushTimer = null;
 const listeners = new Set();
 
 export const onSyncChange = fn => listeners.add(fn);
+// The Supabase client while someone is signed in, for features that read their own tables.
+export const signedInClient = () => (user ? db : null);
 export const syncInfo = () => ({ enabled: syncEnabled, ready: !!db, email: user?.email ?? null, status, lastSync });
 
 function setStatus(s) {

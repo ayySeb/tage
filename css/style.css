@@ -271,6 +271,33 @@ svg { display: block; width: 18px; height: 18px; }
 }
 .meta svg { width: 12px; height: 12px; }
 
+/* calendar events (read-only), between the day header and the tasks */
+.events { flex: none; display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.events:not(:empty) { padding: 7px 0 6px; border-bottom: 1px solid var(--rule); }
+.event {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 6px 2px 8px;
+  border-left: 2.5px solid var(--feed);
+  border-radius: 2px 6px 6px 2px;
+  background: color-mix(in srgb, var(--feed) 9%, transparent);
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-2);
+  cursor: default;
+}
+.event.all-day { background: color-mix(in srgb, var(--feed) 18%, transparent); color: var(--ink); }
+.ev-time { flex: none; font: 500 11px/18px var(--mono); color: var(--muted); }
+.ev-title { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+[data-feed="blue"] { --feed: #3b6cf6; }
+[data-feed="green"] { --feed: #1f9d5a; }
+[data-feed="violet"] { --feed: #7c5cff; }
+[data-feed="orange"] { --feed: #e8833a; }
+[data-feed="red"] { --feed: #e5534b; }
+[data-feed="yellow"] { --feed: #d4a514; }
+
 .meta .spent { display: inline-flex; align-items: center; gap: 3px; }
 .meta .live { color: var(--accent); font-weight: 600; }
 .task.running .check { border-color: var(--accent); }
@@ -640,6 +667,13 @@ body.has-dock .board { padding-bottom: 96px; }
 .auth-msg { min-height: 0; margin: 0; font-size: 13.5px; color: var(--danger); }
 .auth-msg:empty { display: none; }
 .auth button:disabled { opacity: .5; cursor: default; }
+
+.feeds { margin: 0 0 10px; padding: 0; list-style: none; }
+.feeds li { height: 38px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--rule); font-size: 14.5px; }
+.feed-dot { width: 10px; height: 10px; border-radius: 3px; background: var(--feed); }
+.feed-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.feed-add summary { cursor: pointer; font-size: 14px; font-weight: 500; padding: 4px 0 10px; color: var(--ink-2); }
+.feed-add[open] summary { color: var(--ink); }
 
 .sync-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 4px; font-size: 14.5px; }
 .sync-row .hint { margin: 2px 0 10px; }

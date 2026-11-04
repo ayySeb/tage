@@ -32,3 +32,18 @@ create trigger tasks_before_write before insert or update on public.tasks
 
 -- Push changes to other open devices right away.
 alter publication supabase_realtime add table public.tasks;
+
+-- Calendar subscriptions (iCal addresses). The edge function "ics" fetches them on the user's behalf.
+create table public.calendar_feeds (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users on delete cascade,
+  name text not null default '',
+  url text not null,
+  color text not null default 'blue',
+  created_at timestamptz not null default now()
+);
+
+alter table public.calendar_feeds enable row level security;
+create policy "own feeds" on public.calendar_feeds for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));

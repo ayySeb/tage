@@ -5,6 +5,7 @@ import { openSheet } from './sheet.js';
 import { openSettings, applySettings } from './settings.js';
 import { initSync } from './sync.js';
 import { openStats } from './stats.js';
+import { eventsFor, prepareWeek, onCalendarChange } from './calendar.js';
 import { esc, ICON, duration, liveClock, tick } from './ui.js';
 
 const board = document.getElementById('board');
@@ -44,7 +45,7 @@ function build() {
     return `<section class="${cls}"${date === today ? ' id="today"' : ''}>`
       + `<header class="day-head"><span class="dow">${weekdayShort(d)}</span>`
       + `<span class="num">${d.getDate()}<span class="mon">. ${monthShort(d)}</span></span></header>`
-      + `${listHtml(date)}</section>`;
+      + `<ul class="events" data-events="${date}"></ul>${listHtml(date)}</section>`;
   }).join('')
     + `<section class="day someday" id="someday"><header class="day-head"><span class="dow">Irgendwann</span></header>${listHtml('someday')}</section>`;
 
@@ -63,7 +64,17 @@ function render() {
     ul.querySelectorAll(':scope > .task').forEach(n => n.remove());
     ul.lastElementChild.insertAdjacentHTML('beforebegin', store.itemsFor(ul.dataset.list).map(taskHtml).join(''));
   }
+  prepareWeek(weekStart);
+  for (const ul of board.querySelectorAll('[data-events]')) ul.innerHTML = eventsFor(ul.dataset.events).map(eventHtml).join('');
   renderDock();
+}
+
+function eventHtml(ev) {
+  const when = ev.allDay ? 'ganztägig' : `${ev.start}–${ev.end}`;
+  const tip = `${when} · ${ev.title}${ev.location ? ` · ${ev.location}` : ''}`;
+  return `<li class="event${ev.allDay ? ' all-day' : ''}" data-feed="${ev.color}" title="${esc(tip)}">`
+    + (ev.allDay ? '' : `<span class="ev-time">${ev.start}</span>`)
+    + `<span class="ev-title">${esc(ev.title)}</span></li>`;
 }
 
 // While a timer runs, a bar at the bottom shows it from every week, with a stop button.
@@ -160,6 +171,7 @@ document.querySelectorAll('[data-icon]').forEach(b => (b.innerHTML = ICON[b.data
 applySettings();
 store.rollover();
 store.subscribe(render);
+onCalendarChange(render);
 render();
 if (mobile.matches) document.getElementById('today')?.scrollIntoView({ block: 'start' });
 initSync();
