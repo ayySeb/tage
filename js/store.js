@@ -97,6 +97,16 @@ export function addTask(fields) {
   return t;
 }
 
+// Adds many tasks in one go (an import), with a single save, render and upload.
+export function addMany(list) {
+  for (const fields of list) {
+    const t = blank(fields);
+    state.tasks[t.id] = t;
+    state.sync.dirty[t.id] = true;
+  }
+  commit();
+}
+
 // updatedAt always moves forward, even if another device's clock ran ahead of this one.
 const bump = t => Math.max(Date.now(), t.updatedAt + 1);
 
