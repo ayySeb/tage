@@ -11,10 +11,11 @@ self.addEventListener('install', e => {
   self.skipWaiting();
 });
 
+// grow lives on the same origin, so only Tage's own old caches are cleared.
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k.startsWith('tage-') && k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
