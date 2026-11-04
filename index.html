@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="de" data-accent="graphite">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tage</title>
+  <meta name="description" content="Minimalistischer Wochenplaner">
+  <meta name="theme-color" content="#fafaf9">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    // Apply the saved theme before first paint so there is no flash.
+    try {
+      const s = JSON.parse(localStorage.getItem('tage.v1'))?.settings;
+      if (s?.theme && s.theme !== 'auto') document.documentElement.dataset.theme = s.theme;
+      if (s?.accent) document.documentElement.dataset.accent = s.accent;
+    } catch {}
+  </script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="title">
+      <h1 id="range"></h1>
+      <span class="kw" id="kw"></span>
+    </div>
+    <nav class="nav">
+      <button class="icon-btn" id="prev" data-icon="prev" aria-label="Vorige Woche" title="Vorige Woche (←)"></button>
+      <button class="pill" id="todayBtn" title="Heute (T)">Heute</button>
+      <button class="icon-btn" id="next" data-icon="next" aria-label="Nächste Woche" title="Nächste Woche (→)"></button>
+      <span class="sep"></span>
+      <button class="icon-btn only-mobile" id="somedayBtn" data-icon="someday" aria-label="Zu Irgendwann springen"></button>
+      <button class="icon-btn" id="settingsBtn" data-icon="settings" aria-label="Einstellungen" title="Einstellungen"></button>
+    </nav>
+  </header>
+  <main class="board" id="board"></main>
+  <dialog class="sheet" id="sheet" aria-label="Aufgabe"></dialog>
+  <dialog class="sheet small" id="settings" aria-label="Einstellungen"></dialog>
+</body>
+</html>
