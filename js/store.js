@@ -5,7 +5,10 @@ import { iso, parse, addDays, daysBetween, todayIso, startOfWeek } from './dates
 // `sync.dirty` lists tasks changed since they were last uploaded, `sync.cursor` marks how far we have pulled.
 //
 // A task with `repeat` is a series anchored at `date`. Its occurrences are computed per day; per-day state
-// (done, subtask checks, order) lives in `occ[date]`, and removed days are listed in `skip`.
+// (done, subtask checks, order, tracked time) lives in `occ[date]`, and removed days are listed in `skip`.
+//
+// Time tracking: `sessions` holds finished [start, end] pairs (ms), `timerStart` is set while a timer runs.
+// At most one timer runs at a time. `doneAt` records when something was checked off, for the statistics.
 
 const KEY = 'tage.v1';
 export const DEFAULT_SETTINGS = { theme: 'auto', accent: 'graphite', rollover: false };
@@ -56,7 +59,8 @@ export function setSettings(patch) {
 
 const blank = fields => ({
   id: crypto.randomUUID(), title: '', date: null, order: 0, done: false, color: null, notes: '',
-  subtasks: [], repeat: null, skip: [], occ: {}, createdAt: Date.now(), updatedAt: Date.now(), ...fields,
+  subtasks: [], repeat: null, skip: [], occ: {}, sessions: [], timerStart: null, doneAt: null,
+  createdAt: Date.now(), updatedAt: Date.now(), ...fields,
 });
 export const sub = (text, done = false) => ({ id: crypto.randomUUID(), text, done });
 
@@ -124,12 +128,15 @@ export function occursOn(t, date) {
 
 // --- items: what the board shows (a plain task, or one occurrence of a series) ---
 
-const plainItem = t => ({ ...t, key: t.id, series: false });
+// The time-tracking fields of a task or of one occurrence (tasks from before tracking lack them).
+const track = o => ({ sessions: o.sessions ?? [], timerStart: o.timerStart ?? null, doneAt: o.doneAt ?? null });
+
+const plainItem = t => ({ ...t, ...track(t), key: t.id, series: false });
 
 function occurrence(t, date) {
   const o = t.occ[date] ?? {};
   return {
-    ...t, key: `${t.id}@${date}`, date, series: true, done: !!o.done, order: o.order ?? t.order,
+    ...t, ...track(o), key: `${t.id}@${date}`, date, series: true, done: !!o.done, order: o.order ?? t.order,
     subtasks: t.subtasks.map(s => ({ ...s, done: !!o.sub?.[s.id] })),
   };
 }
@@ -159,12 +166,75 @@ function patchOcc(t, date, patch) {
   updateTask(t.id, { occ: { ...t.occ, [date]: { ...t.occ[date], ...patch } } });
 }
 
-export function toggleDone(key) {
+// Writes per-item state: into the task itself, or into the occurrence's slot of a series.
+function patchItem(key, patch) {
   const [id, date] = key.split('@');
   const t = getTask(id);
   if (!t) return;
-  if (date) patchOcc(t, date, { done: !t.occ[date]?.done });
-  else updateTask(id, { done: !t.done });
+  if (date) patchOcc(t, date, patch);
+  else updateTask(id, patch);
+}
+
+// Checking an item off also stops its timer.
+export function toggleDone(key) {
+  const it = getItem(key);
+  if (!it) return;
+  const done = !it.done;
+  patchItem(key, { done, doneAt: done ? Date.now() : null, ...(done && it.timerStart ? stopped(it) : {}) });
+}
+
+// --- timer -------------------------------------------------------------------
+
+export const tracked = (it, now = Date.now()) =>
+  it.sessions.reduce((sum, [a, b]) => sum + b - a, 0) + (it.timerStart ? now - it.timerStart : 0);
+
+// Sessions shorter than a second are taps by mistake, not work.
+function stopped(it) {
+  const end = Date.now();
+  const sessions = end - it.timerStart >= 1000 ? [...it.sessions, [it.timerStart, end]] : it.sessions;
+  return { sessions, timerStart: null };
+}
+
+export function runningKey() {
+  for (const t of Object.values(state.tasks)) {
+    if (t.deleted) continue;
+    if (t.timerStart) return t.id;
+    for (const [date, o] of Object.entries(t.occ ?? {})) if (o.timerStart) return `${t.id}@${date}`;
+  }
+  return null;
+}
+
+export function startTimer(key) {
+  const running = runningKey();
+  if (running === key) return;
+  if (running) stopTimer(running);
+  patchItem(key, { timerStart: Date.now() });
+}
+
+export function stopTimer(key) {
+  const it = getItem(key);
+  if (it?.timerStart) patchItem(key, stopped(it));
+}
+
+export const resetTimer = key => patchItem(key, { sessions: [], timerStart: null });
+
+// Everything the statistics need: tracked sessions and completions, across all tasks and occurrences.
+export function activity() {
+  const sessions = [];
+  const completions = [];
+  const now = Date.now();
+  const collect = (title, o, day) => {
+    for (const [start, end] of o.sessions ?? []) sessions.push({ title, start, end });
+    if (o.timerStart) sessions.push({ title, start: o.timerStart, end: now });
+    const doneDay = o.doneAt ? iso(new Date(o.doneAt)) : day;
+    if (o.done && doneDay) completions.push({ title, day: doneDay });
+  };
+  for (const t of Object.values(state.tasks)) {
+    if (t.deleted) continue;
+    if (t.repeat) for (const [date, o] of Object.entries(t.occ)) collect(t.title, o, date);
+    else collect(t.title, t, t.date);
+  }
+  return { sessions, completions };
 }
 
 export function toggleSubtask(key, subId) {
@@ -191,7 +261,7 @@ export function moveItem(key, list, order) {
   if (target === date) return patchOcc(t, date, { order });
   const o = t.occ[date] ?? {};
   addTask({
-    title: t.title, color: t.color, notes: t.notes, done: !!o.done, date: target, order,
+    title: t.title, color: t.color, notes: t.notes, done: !!o.done, date: target, order, ...track(o),
     subtasks: t.subtasks.map(s => ({ ...s, done: !!o.sub?.[s.id] })),
   });
   skipOccurrence(id, date);
@@ -223,9 +293,9 @@ export function setRepeat(key, repeat) {
     const anchor = t.date ?? todayIso();
     const sub = Object.fromEntries(t.subtasks.filter(s => s.done).map(s => [s.id, true]));
     updateTask(id, {
-      repeat, date: anchor, done: false, skip: [],
+      repeat, date: anchor, done: false, skip: [], sessions: [], timerStart: null, doneAt: null,
       subtasks: t.subtasks.map(s => ({ ...s, done: false })),
-      occ: { [anchor]: { done: t.done, sub } },
+      occ: { [anchor]: { done: t.done, sub, ...track(t) } },
     });
     return `${id}@${anchor}`;
   }
@@ -236,7 +306,7 @@ export function setRepeat(key, repeat) {
   }
   const o = t.occ[date] ?? {};
   updateTask(t.id, {
-    repeat: null, date, done: !!o.done, occ: {}, skip: [],
+    repeat: null, date, done: !!o.done, occ: {}, skip: [], ...track(o),
     subtasks: t.subtasks.map(s => ({ ...s, done: !!o.sub?.[s.id] })),
   });
   return t.id;

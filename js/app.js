@@ -4,9 +4,11 @@ import { initDnd } from './dnd.js';
 import { openSheet } from './sheet.js';
 import { openSettings, applySettings } from './settings.js';
 import { initSync } from './sync.js';
-import { esc, ICON } from './ui.js';
+import { openStats } from './stats.js';
+import { esc, ICON, duration, liveClock, tick } from './ui.js';
 
 const board = document.getElementById('board');
+const dock = document.getElementById('dock');
 const mobile = matchMedia('(max-width: 759.98px)');
 let weekStart = startOfWeek(new Date());
 let built = '';
@@ -20,9 +22,12 @@ function listHtml(list) {
 
 function taskHtml(it) {
   const doneSubs = it.subtasks.filter(s => s.done).length;
+  const spent = store.tracked(it);
+  const time = it.timerStart ? liveClock(it, 'live')
+    : spent ? `<span class="spent">${ICON.clock}${duration(spent)}</span>` : '';
   const meta = (it.repeat ? ICON.repeat : '') + (it.notes.trim() ? ICON.note : '')
-    + (it.subtasks.length ? `<span>${doneSubs}/${it.subtasks.length}</span>` : '');
-  return `<li class="task${it.done ? ' done' : ''}" data-key="${it.key}"${it.color ? ` data-color="${it.color}"` : ''}>`
+    + (it.subtasks.length ? `<span>${doneSubs}/${it.subtasks.length}</span>` : '') + time;
+  return `<li class="task${it.done ? ' done' : ''}${it.timerStart ? ' running' : ''}" data-key="${it.key}"${it.color ? ` data-color="${it.color}"` : ''}>`
     + `<button class="check" aria-label="${it.done ? 'Wieder öffnen' : 'Erledigt'}"></button>`
     + `<span class="text">${esc(it.title) || '<i>Ohne Titel</i>'}</span>`
     + (meta ? `<span class="meta">${meta}</span>` : '')
@@ -58,7 +63,28 @@ function render() {
     ul.querySelectorAll(':scope > .task').forEach(n => n.remove());
     ul.lastElementChild.insertAdjacentHTML('beforebegin', store.itemsFor(ul.dataset.list).map(taskHtml).join(''));
   }
+  renderDock();
 }
+
+// While a timer runs, a bar at the bottom shows it from every week, with a stop button.
+function renderDock() {
+  const key = store.runningKey();
+  const it = key && store.getItem(key);
+  dock.hidden = !it;
+  document.body.classList.toggle('has-dock', !!it);
+  if (!it) return;
+  dock.innerHTML = `<button class="dock-main" data-open="${key}"><span class="pulse"></span>`
+    + `<span class="dock-title">${esc(it.title) || 'Ohne Titel'}</span>${liveClock(it, 'dock-time')}</button>`
+    + `<button class="icon-btn sm dock-stop" data-stop="${key}" aria-label="Timer stoppen" title="Timer stoppen">${ICON.stop}</button>`;
+  tick(dock);
+}
+
+dock.addEventListener('click', e => {
+  const open = e.target.closest('[data-open]');
+  const stop = e.target.closest('[data-stop]');
+  if (stop) store.stopTimer(stop.dataset.stop);
+  else if (open) openSheet(open.dataset.open);
+});
 
 function go(weeks) {
   weekStart = addDays(weekStart, 7 * weeks);
@@ -109,6 +135,7 @@ document.getElementById('prev').onclick = () => go(-1);
 document.getElementById('next').onclick = () => go(1);
 document.getElementById('todayBtn').onclick = goToday;
 document.getElementById('settingsBtn').onclick = openSettings;
+document.getElementById('statsBtn').onclick = openStats;
 document.getElementById('somedayBtn').onclick = () => document.getElementById('someday').scrollIntoView({ behavior: 'smooth' });
 
 document.addEventListener('keydown', e => {

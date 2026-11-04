@@ -1,6 +1,6 @@
 import * as store from './store.js';
 import { longDate } from './dates.js';
-import { esc, ICON, COLORS } from './ui.js';
+import { esc, ICON, COLORS, clock, liveClock } from './ui.js';
 
 const REPEATS = [
   ['', 'Nie'], ['daily', 'Täglich'], ['weekdays', 'Werktags'], ['weekly', 'Wöchentlich'],
@@ -43,6 +43,7 @@ function render() {
       <div class="colors" aria-label="Farbe">
         <button type="button" class="dot none" data-color="" aria-pressed="${!it.color}" aria-label="Keine Farbe" title="Keine Farbe"></button>${dots}
       </div>
+      <div class="timer-box"></div>
       <div class="fields">
         <div class="field"><span class="label">Datum</span><div class="ctrl">${date}</div></div>
         <label class="field"><span class="label">Wiederholen</span><div class="ctrl"><select name="repeat">${REPEATS.map(([v, l]) =>
@@ -58,6 +59,24 @@ function render() {
       <button type="button" class="pill primary" data-act="close">Fertig</button>
     </footer>`;
   renderSubs();
+  renderTimer();
+}
+
+function renderTimer() {
+  const it = store.getItem(key);
+  const spent = store.tracked(it);
+  const count = it.sessions.length;
+  const sub = it.timerStart ? 'läuft'
+    : count ? `${count} ${count === 1 ? 'Sitzung' : 'Sitzungen'}` : 'Noch keine Zeit erfasst';
+  dlg.querySelector('.timer-box').innerHTML = `
+    <div class="timer-read">
+      ${it.timerStart ? liveClock(it, 'timer-time running') : `<span class="timer-time">${clock(spent)}</span>`}
+      <span class="timer-sub">${sub}</span>
+    </div>
+    ${spent && !it.timerStart ? '<button type="button" class="ghost-btn" data-act="timer-reset">Zurücksetzen</button>' : ''}
+    <button type="button" class="pill timer-btn${it.timerStart ? '' : ' primary'}" data-act="timer">
+      ${it.timerStart ? `${ICON.pause}Pause` : `${ICON.play}${spent ? 'Weiter' : 'Start'}`}
+    </button>`;
 }
 
 function renderSubs(focus) {
@@ -92,7 +111,15 @@ dlg.addEventListener('click', e => {
     case 'close': return dlg.close();
     case 'done':
       store.toggleDone(key);
+      renderTimer();
       return btn.classList.toggle('on', store.getItem(key).done);
+    case 'timer':
+      if (store.getItem(key).timerStart) store.stopTimer(key);
+      else store.startTimer(key);
+      return renderTimer();
+    case 'timer-reset':
+      if (confirm('Die erfasste Zeit dieser Aufgabe löschen?')) store.resetTimer(key);
+      return renderTimer();
     case 'someday':
       store.updateTask(taskId(), { date: null, order: store.nextOrder('someday') });
       return render();
