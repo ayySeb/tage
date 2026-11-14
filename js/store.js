@@ -323,6 +323,8 @@ export function setRepeat(key, repeat) {
 }
 
 // Carries unfinished one-off tasks from past days over to today.
+// The move keeps the task's updatedAt: it is not an edit of its own, so a real change from another device
+// (above all checking the task off there before this device synced) still wins over it, here and on the server.
 export function rollover() {
   if (!state.settings.rollover) return;
   const today = todayIso();
@@ -330,7 +332,7 @@ export function rollover() {
   if (!stale.length) return;
   let order = nextOrder(today);
   for (const t of stale) {
-    Object.assign(t, { date: today, order: order++, updatedAt: bump(t) });
+    Object.assign(t, { date: today, order: order++ });
     state.sync.dirty[t.id] = true;
   }
   commit();

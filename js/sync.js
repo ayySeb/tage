@@ -90,6 +90,8 @@ async function run() {
   setStatus('syncing');
   try {
     await pull();
+    // Tasks that just came in from other devices may be from past days too.
+    store.rollover();
     await push();
     lastSync = new Date();
     setStatus('idle');
