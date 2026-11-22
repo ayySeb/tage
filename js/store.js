@@ -26,9 +26,12 @@ function load() {
 }
 
 // Data from before sync existed has never been uploaded, so all of it starts out dirty.
+// `sync.v` marks the sync rules the data was pulled with. Between 14 and 22 Nov 2026 tasks carried forward
+// on another device could be skipped here; v2 pulls everything once more so they arrive.
 function normalize(s) {
   const tasks = s.tasks ?? {};
   const sync = s.sync ?? { cursor: null, dirty: Object.fromEntries(Object.keys(tasks).map(id => [id, true])) };
+  if (sync.v !== 2) Object.assign(sync, { cursor: null, v: 2 });
   return { tasks, settings: { ...DEFAULT_SETTINGS, ...s.settings }, sync };
 }
 
@@ -323,8 +326,9 @@ export function setRepeat(key, repeat) {
 }
 
 // Carries unfinished one-off tasks from past days over to today.
-// The move keeps the task's updatedAt: it is not an edit of its own, so a real change from another device
-// (above all checking the task off there before this device synced) still wins over it, here and on the server.
+// The move pushes updatedAt forward by just one millisecond: enough to reach devices that do not roll over
+// themselves, but never enough to beat a real change made on another device after the task's last edit
+// (above all checking it off there before this device synced). See also `newer` below.
 export function rollover() {
   if (!state.settings.rollover) return;
   const today = todayIso();
@@ -332,7 +336,7 @@ export function rollover() {
   if (!stale.length) return;
   let order = nextOrder(today);
   for (const t of stale) {
-    Object.assign(t, { date: today, order: order++ });
+    Object.assign(t, { date: today, order: order++, updatedAt: t.updatedAt + 1 });
     state.sync.dirty[t.id] = true;
   }
   commit();
@@ -362,11 +366,15 @@ export function setCursor(cursor) {
 }
 
 // Takes rows from the server; a row only replaces the local task if it is newer.
+// Equal times only come from two devices carrying the same task forward; then the later day wins.
+const newer = (r, local) => r.updated_at > local.updatedAt
+  || (r.updated_at === local.updatedAt && (r.data.date ?? '') > (local.date ?? ''));
+
 export function applyRemote(rows) {
   let changed = false;
   for (const r of rows) {
     const local = state.tasks[r.id];
-    if (local && local.updatedAt >= r.updated_at) continue;
+    if (local && !newer(r, local)) continue;
     state.tasks[r.id] = r.data;
     delete state.sync.dirty[r.id];
     changed = true;

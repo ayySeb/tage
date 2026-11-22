@@ -1,4 +1,4 @@
-const CACHE = 'tage-v6';
+const CACHE = 'tage-v7';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/store.js', 'js/dates.js', 'js/dnd.js', 'js/sheet.js', 'js/settings.js', 'js/ui.js',
